@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import models
 from database import engine, SessionLocal
 from typing import List, Optional
+from pydantic import validator
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -18,6 +19,12 @@ def get_db():
         db.close()
 
 # Schemas
+class OTPRequest(BaseModel):
+    mobile_number: str
+
+class OTPResponse(BaseModel):
+    message: str
+
 class LoginRequest(BaseModel):
     mobile_number: str
     otp: str # For simplicity, any OTP works in this prototype
@@ -31,6 +38,17 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+@app.post("/api/auth/generate-otp", response_model=OTPResponse)
+def generate_otp(request: OTPRequest, db: Session = Depends(get_db)):
+    # In a real app, integrate with Twilio/SNS to send SMS here.
+    # We will log the OTP for testing purposes.
+    dummy_otp = "123456"
+    print(f"GENERATED OTP for {request.mobile_number}: {dummy_otp}")
+
+    # Store OTP in memory or cache (Redis) in production.
+    # For this prototype, we're using a hardcoded valid OTP.
+    return {"message": "OTP generated and sent successfully"}
+
 @app.post("/api/auth/login", response_model=UserResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     if request.otp != "123456":
@@ -39,7 +57,10 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
     if not user:
         # For prototype, auto-create user if they don't exist
-        raise HTTPException(status_code=400, detail="User not found")
+        user = models.User(mobile_number=request.mobile_number, role="admin" if request.mobile_number == "1234567890" else "employee")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
     # In a real app, verify OTP here.
     return user
@@ -50,6 +71,21 @@ class BookItemSchema(BaseModel):
     book_id: int | None = None
     order_id: int | None = None
     state: str
+    title: str | None = None
+    author: str | None = None
+    date_of_purchase: str | None = None
+    weight: str | None = None
+    age_group: str | None = None
+    category: str | None = None
+    last_updated_by: int | None = None
+    last_updated: str | None = None
+
+    @validator("date_of_purchase", "last_updated", pre=True)
+    def datetime_to_string(cls, v):
+        if hasattr(v, 'strftime'):
+             return v.strftime("%Y-%m-%d %H:%M:%S")
+        return v
+
 
     class Config:
         from_attributes = True
@@ -105,6 +141,38 @@ def update_inventory(request: StateUpdateRequest, db: Session = Depends(get_db))
     print(f"MOCKED SHOPIFY UPDATE: Updated {item.barcode} to {item.state} in Shopify")
 
     return {"message": "State updated successfully", "new_state": item.state}
+
+
+class HistorySchema(BaseModel):
+    state: str
+    timestamp: str
+    updated_by: str | None = None
+
+    class Config:
+        from_attributes = True
+
+@app.get("/api/inventory/{barcode}/history", response_model=List[HistorySchema])
+def get_inventory_history(barcode: str, db: Session = Depends(get_db)):
+    item = db.query(models.BookItem).filter(models.BookItem.barcode == barcode).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    history_records = db.query(models.StateHistory).filter(models.StateHistory.item_id == item.id).order_by(models.StateHistory.timestamp.desc()).all()
+
+    result = []
+    for record in history_records:
+        agent_name = "System"
+        if record.updated_by:
+            agent = db.query(models.User).filter(models.User.id == record.updated_by).first()
+            if agent:
+                 agent_name = agent.employee_id or agent.mobile_number
+
+        result.append({
+            "state": record.state,
+            "timestamp": record.timestamp.strftime("%Y-%m-%d %H:%M:%S") if hasattr(record.timestamp, 'strftime') else str(record.timestamp),
+            "updated_by": agent_name
+        })
+    return result
 
 class EmployeeRequest(BaseModel):
     mobile_number: str

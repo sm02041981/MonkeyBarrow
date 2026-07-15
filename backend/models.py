@@ -49,6 +49,11 @@ class BookItem(Base):
     book_id = Column(Integer, ForeignKey("books.id"), nullable=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
     state = Column(String, default="Available") # Available, Ordered, Out for Delivery, Delivered, Returned, Sanitization, Damage/Repair
+    title = Column(String, nullable=True)
+    author = Column(String, nullable=True)
+    weight = Column(String, nullable=True)
+    age_group = Column(String, nullable=True)
+    category = Column(String, nullable=True)
     date_of_purchase = Column(DateTime, default=datetime.datetime.utcnow)
     last_updated = Column(DateTime, default=datetime.datetime.utcnow)
     last_updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
