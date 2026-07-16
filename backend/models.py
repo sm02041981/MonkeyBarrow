@@ -12,6 +12,7 @@ class User(Base):
     employee_id = Column(String, unique=True, index=True, nullable=True)
     role = Column(String, default="employee") # "employee" or "admin"
     status = Column(String, default="Active") # "Active", "Suspended", "Not in Firm"
+    totp_secret = Column(String, nullable=True)
 
 class Book(Base):
     __tablename__ = "books"

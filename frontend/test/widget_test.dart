@@ -10,6 +10,6 @@ void main() {
     // Verify that the login page is shown.
     expect(find.text('Monkey\nBarrow'), findsOneWidget);
     expect(find.text('Mobile Number:'), findsOneWidget);
-    expect(find.text('Generate OTP'), findsOneWidget);
+    expect(find.text('Register (Get Secret)'), findsOneWidget);
   });
 }

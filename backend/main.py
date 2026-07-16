@@ -19,15 +19,16 @@ def get_db():
         db.close()
 
 # Schemas
-class OTPRequest(BaseModel):
+class RegisterRequest(BaseModel):
     mobile_number: str
 
-class OTPResponse(BaseModel):
+class RegisterResponse(BaseModel):
     message: str
+    secret: str
 
 class LoginRequest(BaseModel):
     mobile_number: str
-    otp: str # For simplicity, any OTP works in this prototype
+    otp: str
 
 class UserResponse(BaseModel):
     id: int
@@ -38,31 +39,43 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-@app.post("/api/auth/generate-otp", response_model=OTPResponse)
-def generate_otp(request: OTPRequest, db: Session = Depends(get_db)):
-    # In a real app, integrate with Twilio/SNS to send SMS here.
-    # We will log the OTP for testing purposes.
-    dummy_otp = "123456"
-    print(f"GENERATED OTP for {request.mobile_number}: {dummy_otp}")
+import pyotp
 
-    # Store OTP in memory or cache (Redis) in production.
-    # For this prototype, we're using a hardcoded valid OTP.
-    return {"message": "OTP generated and sent successfully"}
-
-@app.post("/api/auth/login", response_model=UserResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
-    if request.otp != "123456":
-        raise HTTPException(status_code=400, detail="Invalid OTP")
-
+@app.post("/api/auth/register", response_model=RegisterResponse)
+def register(request: RegisterRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
+
     if not user:
-        # For prototype, auto-create user if they don't exist
-        user = models.User(mobile_number=request.mobile_number, role="admin" if request.mobile_number == "1234567890" else "employee")
+        # Auto-create user if they don't exist for prototype
+        secret = pyotp.random_base32()
+        user = models.User(
+            mobile_number=request.mobile_number,
+            role="admin" if request.mobile_number == "1234567890" else "employee",
+            totp_secret=secret
+        )
         db.add(user)
         db.commit()
         db.refresh(user)
+    else:
+        if user.totp_secret:
+            raise HTTPException(status_code=400, detail="User already registered")
+        user.totp_secret = pyotp.random_base32()
+        db.commit()
+        db.refresh(user)
 
-    # In a real app, verify OTP here.
+    return {"message": "User registered successfully", "secret": user.totp_secret}
+
+@app.post("/api/auth/login", response_model=UserResponse)
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
+
+    if not user or not user.totp_secret:
+        raise HTTPException(status_code=400, detail="User not found or not registered for TOTP")
+
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(request.otp):
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
     return user
 
 class BookItemSchema(BaseModel):
