@@ -1,3 +1,8 @@
+"""
+   SM-MB-16-July-20026 - this is a model file with SQLAlchemy models (User, BookItem, etc.).
+   Basically here I am defining my database tables and their relationships. I am using SQLAlchemy ORM to define the models and their relationships. The models are defined as classes that inherit from the Base class, which is defined in the database.py file. Each class represents a table in the database, and each attribute of the class represents a column in the table. The relationships between the tables are defined using the relationship() function, which allows me to define one-to-many and many-to-one relationships between the tables.
+   Any change in database tables will impact the models here, so I need to keep this file updated with any changes in the database schema.
+"""
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime
 from sqlalchemy.orm import relationship
 import datetime
@@ -24,7 +29,6 @@ class Book(Base):
     category = Column(String)
     weight = Column(String, nullable=True)
     description = Column(String, nullable=True)
-
     items = relationship("BookItem", back_populates="book")
 
 class Order(Base):
