@@ -25,6 +25,8 @@ class Book(Base):
     category = Column(String)
     weight = Column(String, nullable=True)
     description = Column(String, nullable=True)
+    publication_date = Column(String, nullable=True)
+    cover_image_url = Column(String, nullable=True)
 
     items = relationship("BookItem", back_populates="book")
 
@@ -55,6 +57,9 @@ class BookItem(Base):
     weight = Column(String, nullable=True)
     age_group = Column(String, nullable=True)
     category = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    publication_date = Column(String, nullable=True)
+    cover_image_url = Column(String, nullable=True)
     date_of_purchase = Column(DateTime, default=datetime.datetime.utcnow)
     last_updated = Column(DateTime, default=datetime.datetime.utcnow)
     last_updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)

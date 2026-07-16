@@ -90,6 +90,9 @@ class BookItemSchema(BaseModel):
     weight: str | None = None
     age_group: str | None = None
     category: str | None = None
+    description: str | None = None
+    publication_date: str | None = None
+    cover_image_url: str | None = None
     last_updated_by: int | None = None
     last_updated: str | None = None
 
@@ -108,12 +111,73 @@ class StateUpdateRequest(BaseModel):
     new_state: str
     agent_id: int
 
+import httpx
+
 @app.get("/api/inventory/{barcode}", response_model=BookItemSchema)
 def get_inventory(barcode: str, db: Session = Depends(get_db)):
     item = db.query(models.BookItem).filter(models.BookItem.barcode == barcode).first()
     if not item:
-        # Mocking an external API fetch for new items
-        item = models.BookItem(barcode=barcode, serial_number=f"SN-{barcode}", state="Available")
+        # Fetch book data from Google Books API
+        title = None
+        author = None
+        description = None
+        publication_date = None
+        cover_image_url = None
+
+        try:
+            # We don't use httpx async here since we are in a def endpoint, so use httpx.get synchronous
+            response = httpx.get(f"https://www.googleapis.com/books/v1/volumes?q=isbn:{barcode}")
+            if response.status_code == 200:
+                data = response.json()
+                if "items" in data and len(data["items"]) > 0:
+                    volume_info = data["items"][0].get("volumeInfo", {})
+                    title = volume_info.get("title")
+                    authors = volume_info.get("authors", [])
+                    author = ", ".join(authors) if authors else None
+                    description = volume_info.get("description")
+                    publication_date = volume_info.get("publishedDate")
+                    image_links = volume_info.get("imageLinks", {})
+                    cover_image_url = image_links.get("thumbnail")
+        except Exception as e:
+            print(f"Error fetching from Google Books: {e}")
+
+        book = db.query(models.Book).filter(models.Book.isbn == barcode).first()
+        if not book:
+            book = models.Book(
+                isbn=barcode,
+                title=title,
+                author=author,
+                description=description,
+                publication_date=publication_date,
+                cover_image_url=cover_image_url
+            )
+            db.add(book)
+            db.commit()
+            db.refresh(book)
+        else:
+            # Fallback to existing book data if API fetch failed
+            if not title:
+                title = book.title
+            if not author:
+                author = book.author
+            if not description:
+                description = book.description
+            if not publication_date:
+                publication_date = book.publication_date
+            if not cover_image_url:
+                cover_image_url = book.cover_image_url
+
+        item = models.BookItem(
+            barcode=barcode,
+            serial_number=f"SN-{barcode}",
+            state="Available",
+            book_id=book.id,
+            title=title,
+            author=author,
+            description=description,
+            publication_date=publication_date,
+            cover_image_url=cover_image_url
+        )
         db.add(item)
         db.commit()
         db.refresh(item)

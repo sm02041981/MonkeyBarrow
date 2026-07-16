@@ -43,11 +43,40 @@ def test_register_and_login():
     response = client.post("/api/auth/login", json={"mobile_number": "1234567890", "otp": "000000"})
     assert response.status_code == 400
 
-def test_get_inventory():
+from unittest.mock import patch
+
+@patch("httpx.get")
+def test_get_inventory(mock_get):
+    class MockResponse:
+        status_code = 200
+        def json(self):
+            return {
+                "items": [
+                    {
+                        "volumeInfo": {
+                            "title": "Mock Book Title",
+                            "authors": ["Author One", "Author Two"],
+                            "description": "A great mock book.",
+                            "publishedDate": "2023-01-01",
+                            "imageLinks": {
+                                "thumbnail": "http://example.com/cover.jpg"
+                            }
+                        }
+                    }
+                ]
+            }
+    mock_get.return_value = MockResponse()
+
     response = client.get("/api/inventory/TEST_BARCODE")
     assert response.status_code == 200
-    assert response.json()["barcode"] == "TEST_BARCODE"
-    assert response.json()["state"] == "Available"
+    data = response.json()
+    assert data["barcode"] == "TEST_BARCODE"
+    assert data["state"] == "Available"
+    assert data["title"] == "Mock Book Title"
+    assert data["author"] == "Author One, Author Two"
+    assert data["description"] == "A great mock book."
+    assert data["publication_date"] == "2023-01-01"
+    assert data["cover_image_url"] == "http://example.com/cover.jpg"
 
 def test_update_inventory():
     # First get it so it's created
