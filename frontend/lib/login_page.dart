@@ -15,25 +15,29 @@ class _LoginPageState extends State<LoginPage> {
   final _mobileController = TextEditingController();
   final _otpController = TextEditingController();
 
-  Future<void> _generateOtp() async {
+  Future<void> _register() async {
     if (_mobileController.text.isNotEmpty) {
       try {
         final response = await http.post(
-          Uri.parse(Config.apiUrl + '/api/auth/generate-otp'),
+          Uri.parse(Config.apiUrl + '/api/auth/register'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'mobile_number': _mobileController.text}),
         );
 
         if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('OTP Generated! (Use 123456)')),
+              SnackBar(
+                content: Text('Registered! TOTP Secret: ${data["secret"]}\nAdd this to Google Authenticator.'),
+                duration: const Duration(seconds: 10),
+              ),
             );
           }
         } else {
             if (mounted) {
                ScaffoldMessenger.of(context).showSnackBar(
-                 SnackBar(content: Text('Error generating OTP: ${response.statusCode}')),
+                 SnackBar(content: Text('Error registering: ${response.statusCode} - ${response.body}')),
                );
             }
         }
@@ -163,7 +167,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton(
-                          onPressed: _generateOtp,
+                          onPressed: _register,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: Colors.black,
@@ -173,7 +177,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           ),
-                          child: const Text('Generate OTP'),
+                          child: const Text('Register (Get Secret)'),
                         ),
                       ],
                     ),

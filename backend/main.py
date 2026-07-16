@@ -72,30 +72,20 @@ def get_db():
     finally:
         db.close()
 
-"""
-Section5 : SCHEMAS DATA MODELS
-Background: Pydantic models define the request and response bodies for API endpoints.
-Each class inherits from BaseModel and defines fields with types. 
-Pydantic automatically validates incoming requests and serializes responses.
-"""
-"""
-Defines request body for OTP generation.
-"""
-class OTPRequest(BaseModel):
+# Schemas
+class RegisterRequest(BaseModel):
     mobile_number: str
 
-"""
-Defines response body for OTP generation.
-"""
-class OTPResponse(BaseModel):
+class RegisterResponse(BaseModel):
     message: str
+    secret: str
 
 """
 Defines request body for user login.
 """
 class LoginRequest(BaseModel):
     mobile_number: str
-    otp: str # For simplicity, any OTP works in this prototype
+    otp: str
 
 """
 Defines response body for user login info .
@@ -124,38 +114,44 @@ Background: In production, you’d integrate Twilio/SNS to send SMS. Here it jus
 Calls: OTPRequest schema, Depends(get_db) for DB session.
 """
 
-@app.post("/api/auth/generate-otp", response_model=OTPResponse)
-def generate_otp(request: OTPRequest, db: Session = Depends(get_db)):
-    # In a real app, integrate with Twilio/SNS to send SMS here.
-    # We will log the OTP for testing purposes.
-    dummy_otp = "123456"
-    print(f"GENERATED OTP for {request.mobile_number}: {dummy_otp}")
-    # Store OTP in memory or cache (Redis) in production.
-    # For this prototype, we're using a hardcoded valid OTP.
-    return {"message": "OTP generated and sent successfully"}
+import pyotp
 
-"""
-Section7 : LOGIN ENDPOINTS
-Validates OTP.
-Background: Raises HTTP 400 if OTP is wrong.
-"""
+@app.post("/api/auth/register", response_model=RegisterResponse)
+def register(request: RegisterRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
+
+    if not user:
+        # Auto-create user if they don't exist for prototype
+        secret = pyotp.random_base32()
+        user = models.User(
+            mobile_number=request.mobile_number,
+            role="admin" if request.mobile_number == "1234567890" else "employee",
+            totp_secret=secret
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        if user.totp_secret:
+            raise HTTPException(status_code=400, detail="User already registered")
+        user.totp_secret = pyotp.random_base32()
+        db.commit()
+        db.refresh(user)
+
+    return {"message": "User registered successfully", "secret": user.totp_secret}
+
 @app.post("/api/auth/login", response_model=UserResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
-    if request.otp != "123456":
+    user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
+
+    if not user or not user.totp_secret:
+        raise HTTPException(status_code=400, detail="User not found or not registered for TOTP")
+
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(request.otp):
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
-    user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
-    if not user:
-        # For prototype, auto-create user if they don't exist
-        #user = models.User(mobile_number=request.mobile_number, role="admin" if request.mobile_number == "1234567890" else "employee")
-        #db.add(user)
-        #db.commit()
-        #db.refresh(user)
-        # Do not auto-create user anymore
-        print("CHECK WITH ADMIN, WE CANT NOT FIND YOUR RECORD IN OUR DATABASE")
-        raise HTTPException(status_code=404, detail="CHECK WITH ADMIN, WE CANT NOT FIND YOUR RECORD IN OUR DATABASE")  
-        # In a real app, verify OTP here.
-        return user
+    return user
 
 class BookItemSchema(BaseModel):
     barcode: str
