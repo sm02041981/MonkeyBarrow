@@ -1,16 +1,70 @@
+"""
+Section1 : IMPORTS
+
+    SM-MB-16July-2026 - Database configuration with SQLAlchemy engine.
+    This file defines the database engine, session factory, and Base class.
+    I am commenting each and every line for clarity and future reference
+
+    FastAPI: Provides the web framework.
+        FastAPI → creates the app.
+        Depends → dependency injection (used for DB sessions).
+        HTTPException → raises HTTP errors.
+        status → constants for HTTP status codes.
+    
+    SQLAlchemy ORM: Session is the DB session class.
+    Pydantic: 
+        BaseModel → defines request/response schemas with validation.
+        ConfigDict → v2 way to configure models.
+        field_validator → v2 way to validate/transform fields.
+
+    models: Your own file with SQLAlchemy ORM classes (User, BookItem, StateHistory, Order).
+    database: Your own file with DB engine and session factory (engine, SessionLocal).
+"""
+
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_validator
 import models
 from database import engine, SessionLocal
 from typing import List, Optional
-from pydantic import validator
+#Depricated - from pydantic import validator
 
+
+"""
+Section2 : DATABASE INITIALIZATION
+Background: SQLAlchemy inspects all models defined in models.Base and creates tables in the database if they don’t exist.
+Calls: models.Base (your declarative base), engine (from database.py).        
+"""
 models.Base.metadata.create_all(bind=engine)
 
+"""
+Section3 : FASTAPI APPLICATION
+Creates the FastAPI application object.
+Background: This object registers routes (@app.get, @app.post) and runs the web server.
+"""
 app = FastAPI(title="MonkeyBarrow Inventory Management")
 
-# Dependency
+"""
+Section3.5 : CORS CONFIGURATION
+Enables Cross-Origin Resource Sharing so Flutter web/mobile can access the API.
+Background: CORS headers allow requests from different origins (domains/ports).
+"""
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (in production, specify exact domains)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
+
+
+"""
+Section4 : DEPENDENCY INJECTION
+Provides a database session to each request.
+Background: FastAPI’s Depends(get_db) automatically calls this function, yields a DB session, and closes it after the request finishes.
+Calls: SessionLocal (session factory from database.py).
+"""
 def get_db():
     db = SessionLocal()
     try:
@@ -19,50 +73,84 @@ def get_db():
         db.close()
 
 # Schemas
-class OTPRequest(BaseModel):
+class RegisterRequest(BaseModel):
     mobile_number: str
 
-class OTPResponse(BaseModel):
+class RegisterResponse(BaseModel):
     message: str
+    secret: str
 
+"""
+Defines request body for user login.
+"""
 class LoginRequest(BaseModel):
     mobile_number: str
-    otp: str # For simplicity, any OTP works in this prototype
+    otp: str
 
+"""
+Defines response body for user login info .
+"""
 class UserResponse(BaseModel):
     id: int
     mobile_number: str
     employee_id: str | None = None
     role: str
 
-    class Config:
-        from_attributes = True
+    #below is obsolete, I will remove it in future versions
+    #class Config:
+    #    from_attributes = True
+    """
+    Background: from_attributes=True allows Pydantic to convert SQLAlchemy ORM objects into JSON responses.
+    """
+    model_config = ConfigDict(from_attributes=True)
 
-@app.post("/api/auth/generate-otp", response_model=OTPResponse)
-def generate_otp(request: OTPRequest, db: Session = Depends(get_db)):
-    # In a real app, integrate with Twilio/SNS to send SMS here.
-    # We will log the OTP for testing purposes.
-    dummy_otp = "123456"
-    print(f"GENERATED OTP for {request.mobile_number}: {dummy_otp}")
+"""
+Section6 : OTP GENERATION AND LOGIN ENDPOINTS
+Background: These endpoints handle OTP generation and user login. 
+In a real application, you would integrate with an SMS service (like Twilio) to send OTPs. 
+For this prototype, we use a hardcoded OTP for simplicity.
+<SO WE HAVE TO IMPLEMENT TWILLO API IN FUTURE>
+Background: In production, you’d integrate Twilio/SNS to send SMS. Here it just prints a dummy OTP.
+Calls: OTPRequest schema, Depends(get_db) for DB session.
+"""
 
-    # Store OTP in memory or cache (Redis) in production.
-    # For this prototype, we're using a hardcoded valid OTP.
-    return {"message": "OTP generated and sent successfully"}
+import pyotp
 
-@app.post("/api/auth/login", response_model=UserResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
-    if request.otp != "123456":
-        raise HTTPException(status_code=400, detail="Invalid OTP")
-
+@app.post("/api/auth/register", response_model=RegisterResponse)
+def register(request: RegisterRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
+
     if not user:
-        # For prototype, auto-create user if they don't exist
-        user = models.User(mobile_number=request.mobile_number, role="admin" if request.mobile_number == "1234567890" else "employee")
+        # Auto-create user if they don't exist for prototype
+        secret = pyotp.random_base32()
+        user = models.User(
+            mobile_number=request.mobile_number,
+            role="admin" if request.mobile_number == "1234567890" else "employee",
+            totp_secret=secret
+        )
         db.add(user)
         db.commit()
         db.refresh(user)
+    else:
+        if user.totp_secret:
+            raise HTTPException(status_code=400, detail="User already registered")
+        user.totp_secret = pyotp.random_base32()
+        db.commit()
+        db.refresh(user)
 
-    # In a real app, verify OTP here.
+    return {"message": "User registered successfully", "secret": user.totp_secret}
+
+@app.post("/api/auth/login", response_model=UserResponse)
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
+
+    if not user or not user.totp_secret:
+        raise HTTPException(status_code=400, detail="User not found or not registered for TOTP")
+
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(request.otp):
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
     return user
 
 class BookItemSchema(BaseModel):
@@ -80,15 +168,23 @@ class BookItemSchema(BaseModel):
     last_updated_by: int | None = None
     last_updated: str | None = None
 
-    @validator("date_of_purchase", "last_updated", pre=True)
+    #below is obsolete, I will remove it in future versions
+    #@validator("date_of_purchase", "last_updated", pre=True)
+    #def datetime_to_string(cls, v):
+    
+
+    @field_validator("date_of_purchase", "last_updated", mode="before")
     def datetime_to_string(cls, v):
         if hasattr(v, 'strftime'):
              return v.strftime("%Y-%m-%d %H:%M:%S")
         return v
 
 
-    class Config:
-        from_attributes = True
+    #below is obsolete, I will remove it in future versions
+    #class Config:
+    #    from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 class StateUpdateRequest(BaseModel):
     barcode: str
@@ -148,8 +244,10 @@ class HistorySchema(BaseModel):
     timestamp: str
     updated_by: str | None = None
 
-    class Config:
-        from_attributes = True
+    #below is obsolete, I will remove it in future versions
+    #class Config:
+    #    from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 @app.get("/api/inventory/{barcode}/history", response_model=List[HistorySchema])
 def get_inventory_history(barcode: str, db: Session = Depends(get_db)):
@@ -252,3 +350,10 @@ def shopify_order_create(webhook_data: ShopifyOrderWebhookRequest, db: Session =
     db.commit()
 
     return {"message": "Order processed successfully", "order_id": new_order.id}
+
+
+# Server startup
+if __name__ == "__main__":
+    import uvicorn
+    # Listen on 0.0.0.0:8000 to accept requests from all network interfaces
+    uvicorn.run(app, host="0.0.0.0", port=8000)

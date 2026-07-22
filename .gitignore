@@ -1,4 +1,27 @@
-backend/venv/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+
+# Logs and databases
+*.log
+*.sqlite3
+
+# IDE settings
+.vscode/
+.idea/
+
+# Database
 *.db
-*.sqlite
-frontend/
+
+# Frontend
+frontend/build/
+frontend/.dart_tool/
+frontend/.pub-cache/
+frontend/.packages
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies

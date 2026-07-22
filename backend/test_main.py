@@ -19,22 +19,29 @@ app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
 
-def test_generate_otp():
-    response = client.post("/api/auth/generate-otp", json={"mobile_number": "1234567890"})
-    assert response.status_code == 200
-    assert response.json()["message"] == "OTP generated and sent successfully"
+import pyotp
 
-def test_login():
-    # Create mock user for test
-    db = SessionLocal()
-    user = db.query(models.User).filter(models.User.mobile_number=="1234567890").first()
-    if not user:
-        db.add(models.User(mobile_number="1234567890", role="admin"))
-        db.commit()
-    db.close()
-    response = client.post("/api/auth/login", json={"mobile_number": "1234567890", "otp": "123456"})
+def test_register_and_login():
+    # 1. Register to get the TOTP secret
+    response = client.post("/api/auth/register", json={"mobile_number": "1234567890"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "User registered successfully"
+    secret = data["secret"]
+    assert secret is not None
+    assert len(secret) > 0
+
+    # 2. Login using the TOTP secret
+    totp = pyotp.TOTP(secret)
+    current_otp = totp.now()
+
+    response = client.post("/api/auth/login", json={"mobile_number": "1234567890", "otp": current_otp})
     assert response.status_code == 200
     assert response.json()["mobile_number"] == "1234567890"
+
+    # 3. Test invalid OTP
+    response = client.post("/api/auth/login", json={"mobile_number": "1234567890", "otp": "000000"})
+    assert response.status_code == 400
 
 def test_get_inventory():
     response = client.get("/api/inventory/TEST_BARCODE")
