@@ -1,7 +1,9 @@
 """
+--------------------
 Section1 : IMPORTS
+--------------------
 
-    SM-MB-16July-2026 - Database configuration with SQLAlchemy engine.
+    SM-MB-22July-2026 - Database configuration with SQLAlchemy engine.
     This file defines the database engine, session factory, and Base class.
     I am commenting each and every line for clarity and future reference
 
@@ -32,21 +34,28 @@ from typing import List, Optional
 
 
 """
+--------------------
 Section2 : DATABASE INITIALIZATION
+--------------------
+
 Background: SQLAlchemy inspects all models defined in models.Base and creates tables in the database if they don’t exist.
 Calls: models.Base (your declarative base), engine (from database.py).        
 """
 models.Base.metadata.create_all(bind=engine)
 
 """
+--------------------
 Section3 : FASTAPI APPLICATION
+--------------------
 Creates the FastAPI application object.
 Background: This object registers routes (@app.get, @app.post) and runs the web server.
 """
 app = FastAPI(title="MonkeyBarrow Inventory Management")
 
 """
-Section3.5 : CORS CONFIGURATION
+--------------------
+Section4 : CORS CONFIGURATION
+--------------------
 Enables Cross-Origin Resource Sharing so Flutter web/mobile can access the API.
 Background: CORS headers allow requests from different origins (domains/ports).
 """
@@ -60,7 +69,9 @@ app.add_middleware(
 
 
 """
-Section4 : DEPENDENCY INJECTION
+--------------------
+Section5 : DEPENDENCY INJECTION
+--------------------
 Provides a database session to each request.
 Background: FastAPI’s Depends(get_db) automatically calls this function, yields a DB session, and closes it after the request finishes.
 Calls: SessionLocal (session factory from database.py).
@@ -72,7 +83,14 @@ def get_db():
     finally:
         db.close()
 
-# Schemas
+""" 
+--------------------
+Section6 : SCHEMAS
+--------------------
+Defines request/response for registration.
+Backend: validates incoming JSON.
+
+"""
 class RegisterRequest(BaseModel):
     mobile_number: str
 
@@ -81,6 +99,9 @@ class RegisterResponse(BaseModel):
     secret: str
 
 """
+--------------------
+Section7: LoginRequest / UserResponse   
+--------------------    
 Defines request body for user login.
 """
 class LoginRequest(BaseModel):
@@ -105,7 +126,9 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 """
-Section6 : OTP GENERATION AND LOGIN ENDPOINTS
+--------------------
+Section8 : OTP REGISTRATION ENDPOINTS
+--------------------
 Background: These endpoints handle OTP generation and user login. 
 In a real application, you would integrate with an SMS service (like Twilio) to send OTPs. 
 For this prototype, we use a hardcoded OTP for simplicity.
@@ -125,7 +148,7 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
         secret = pyotp.random_base32()
         user = models.User(
             mobile_number=request.mobile_number,
-            role="admin" if request.mobile_number == "1234567890" else "employee",
+            role="admin" if request.mobile_number == "8879578999" else "employee",
             totp_secret=secret
         )
         db.add(user)
@@ -140,6 +163,17 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
 
     return {"message": "User registered successfully", "secret": user.totp_secret}
 
+""" 
+--------------------
+Section9 : LOGIN ENDPOINTS
+--------------------
+Frontend call: Flutter sends mobile + OTP.
+Backend interaction:
+Query DB for user.
+Verify OTP using pyotp.TOTP(user.totp_secret).
+If valid → return user object.
+If invalid → raise HTTPException.
+"""
 @app.post("/api/auth/login", response_model=UserResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
@@ -356,4 +390,4 @@ def shopify_order_create(webhook_data: ShopifyOrderWebhookRequest, db: Session =
 if __name__ == "__main__":
     import uvicorn
     # Listen on 0.0.0.0:8000 to accept requests from all network interfaces
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8009)

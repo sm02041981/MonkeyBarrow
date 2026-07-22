@@ -43,7 +43,7 @@ class _InventoryPageState extends State<InventoryPage> {
     });
 
     try {
-      final response = await http.get(Uri.parse(Config.apiUrl + '/api/inventory/$barcode'));
+      final response = await http.get(Uri.parse('${Config.apiUrl}/api/inventory/$barcode'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
@@ -83,7 +83,7 @@ class _InventoryPageState extends State<InventoryPage> {
   Future<void> _saveState() async {
      try {
        final response = await http.patch(
-          Uri.parse(Config.apiUrl + '/api/inventory/state'),
+          Uri.parse('${Config.apiUrl}/api/inventory/state'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
              'barcode': _barcodeController.text,
@@ -231,7 +231,7 @@ class _InventoryPageState extends State<InventoryPage> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _nextState,
+                    initialValue: _nextState,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),

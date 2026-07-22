@@ -15,11 +15,12 @@ class _LoginPageState extends State<LoginPage> {
   final _mobileController = TextEditingController();
   final _otpController = TextEditingController();
 
+/*
   Future<void> _register() async {
     if (_mobileController.text.isNotEmpty) {
       try {
         final response = await http.post(
-          Uri.parse(Config.apiUrl + '/api/auth/register'),
+          Uri.parse('${Config.apiUrl}/api/auth/register'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'mobile_number': _mobileController.text}),
         );
@@ -50,12 +51,13 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
   }
+*/
 
   Future<void> _submit() async {
     if (_otpController.text.isNotEmpty) {
       try {
          final response = await http.post(
-          Uri.parse(Config.apiUrl + '/api/auth/login'),
+          Uri.parse('${Config.apiUrl}/api/auth/login'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
              'mobile_number': _mobileController.text,
@@ -109,27 +111,39 @@ class _LoginPageState extends State<LoginPage> {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.blue.shade200, width: 2),
                       ),
-                      child: const Center(
-                        child: Text(
-                          'Monkey\nBarrow',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
+                      child: ClipOval(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Image.asset(
+                              '/logo.png',
+                              fit: BoxFit.cover,
+                              width: 150,
+                              height: 150,
+                            ),
+                            const Text(
+                              'MonkeyBarrow',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                               fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white, // overlay text color
+                                shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 8, width: 200),
                     const Text(
-                      'Inventory\nBarcode',
+                      'Inventory Management System - Barcode Scanning Application',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, color: Colors.black87),
-                    ),
+                      style: TextStyle(fontSize: 18, color: Colors.black87),
+                    ),  
                   ],
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 40, width: 200),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -166,7 +180,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        ElevatedButton(
+                        /*ElevatedButton(
                           onPressed: _register,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
@@ -178,7 +192,8 @@ class _LoginPageState extends State<LoginPage> {
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           ),
                           child: const Text('Register (Get Secret)'),
-                        ),
+                        
+                        ),                       */
                       ],
                     ),
                   ],
