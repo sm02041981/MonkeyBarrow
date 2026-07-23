@@ -1,5 +1,8 @@
 from fastapi.testclient import TestClient
-from main import app, get_db
+from main import app
+from routers.auth import get_db as get_db_auth
+from routers.inventory import get_db as get_db_inventory
+from routers.order import get_db as get_db_order
 from database import Base, engine, SessionLocal
 import models
 import pytest
@@ -15,13 +18,21 @@ def override_get_db():
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[get_db_auth] = override_get_db
+app.dependency_overrides[get_db_inventory] = override_get_db
+app.dependency_overrides[get_db_order] = override_get_db
 
 client = TestClient(app)
 
 import pyotp
 
 def test_register_and_login():
+    # Cleanup before testing
+    db = SessionLocal()
+    db.query(models.User).filter(models.User.mobile_number=="1234567890").delete()
+    db.commit()
+    db.close()
+
     # 1. Register to get the TOTP secret
     response = client.post("/api/auth/register", json={"mobile_number": "1234567890"})
     assert response.status_code == 200
