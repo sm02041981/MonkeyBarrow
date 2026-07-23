@@ -116,10 +116,13 @@ class _LoginPageState extends State<LoginPage> {
                           alignment: Alignment.center,
                           children: [
                             Image.asset(
-                              '/logo.png',
+                              'assets/logo.png',
                               fit: BoxFit.cover,
                               width: 150,
                               height: 150,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.error, size: 150);
+                              },
                             ),
                             const Text(
                               'MonkeyBarrow',
