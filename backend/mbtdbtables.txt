@@ -1,0 +1,146 @@
+-- Users Table
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY,                       -- unique PK, manually assigned
+    employee_id VARCHAR UNIQUE,                   -- formatted ID (MB-EMP###)
+    mobile_number VARCHAR UNIQUE,                 -- employee mobile
+    role VARCHAR DEFAULT 'employee',              -- "employee", "admin", etc.
+    employment_status VARCHAR DEFAULT 'Active',   -- "Active", "Suspended", "Not in Firm"
+    totp_secret VARCHAR                           -- optional TOTP secret
+);
+
+CREATE INDEX idx_users_employee_id ON users(employee_id);
+CREATE INDEX idx_users_mobile_number ON users(mobile_number);
+
+-- Book Table
+CREATE TABLE books (
+    mb_isbn13 VARCHAR PRIMARY KEY,
+    title VARCHAR,
+    author VARCHAR,
+    age_group VARCHAR,
+    category VARCHAR,
+    weight VARCHAR,
+    description VARCHAR,
+    quantity INTEGER DEFAULT 1,
+    mrp FLOAT,
+    image_fp_url VARCHAR,
+    last_updated_by VARCHAR,
+    image_other_url_1 VARCHAR,
+    image_other_url_2 VARCHAR,
+    image_other_url_3 VARCHAR
+);
+
+-- Toy Table
+CREATE TABLE toys (
+    mbcode VARCHAR PRIMARY KEY,
+    title VARCHAR,
+    brand VARCHAR,
+    age_group VARCHAR,
+    category VARCHAR,
+    weight VARCHAR,
+    description VARCHAR,
+    quantity INTEGER DEFAULT 1,
+    mrp FLOAT,
+    last_updated_by VARCHAR,
+    image_other_url_1 VARCHAR,
+    image_other_url_2 VARCHAR,
+    image_other_url_3 VARCHAR
+);
+
+-- Premium Toy Table
+CREATE TABLE premiumtoys (
+    mbcode VARCHAR PRIMARY KEY,
+    title VARCHAR,
+    brand VARCHAR,
+    age_group VARCHAR,
+    category VARCHAR,
+    weight VARCHAR,
+    description VARCHAR,
+    quantity INTEGER DEFAULT 1,
+    mrp FLOAT,
+    last_updated_by VARCHAR,
+    image_other_url_1 VARCHAR,
+    image_other_url_2 VARCHAR,
+    image_other_url_3 VARCHAR
+);
+
+-- Order Table
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY,                       -- unique PK, manually assigned
+    shopify_order_id VARCHAR UNIQUE,
+    customer_name VARCHAR,
+    customer_mobile VARCHAR,
+    customer_address VARCHAR,
+    customer_pincode VARCHAR,
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    estimated_delivery_date TIMESTAMP,
+    order_status VARCHAR DEFAULT 'Ordered'
+);
+
+-- Book Item Table
+CREATE TABLE book_items (
+    serial_number VARCHAR PRIMARY KEY,
+    item_mb_isbn13 VARCHAR REFERENCES books(mb_isbn13),
+    item_location VARCHAR DEFAULT 'MB-Parekh-Ground-Floor',
+    date_of_purchase TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    order_id INTEGER REFERENCES orders(id),
+    state VARCHAR DEFAULT 'Available',
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated_by VARCHAR REFERENCES users(employee_id)
+);
+
+-- Toy Item Table
+CREATE TABLE toy_items (
+    serial_number VARCHAR PRIMARY KEY,
+    item_mbcode VARCHAR REFERENCES toys(mbcode),
+    item_location VARCHAR DEFAULT 'MB-Parekh-Ground-Floor',
+    date_of_purchase TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    order_id INTEGER REFERENCES orders(id),
+    state VARCHAR DEFAULT 'Available',
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated_by VARCHAR REFERENCES users(employee_id)
+);
+
+-- Premium Toy Item Table
+CREATE TABLE premiumtoy_items (
+    serial_number VARCHAR PRIMARY KEY,
+    item_mbcode VARCHAR REFERENCES premiumtoys(mbcode),
+    item_location VARCHAR DEFAULT 'MB-Parekh-Ground-Floor',
+    date_of_purchase TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    order_id INTEGER REFERENCES orders(id),
+    state VARCHAR DEFAULT 'Available',
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated_by VARCHAR REFERENCES users(employee_id)
+);
+
+-- Book State History
+CREATE TABLE book_state_history (
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,                       
+    book_item_serial_number VARCHAR REFERENCES book_items(serial_number),
+    state VARCHAR,
+    state_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    state_updated_by VARCHAR REFERENCES users(employee_id),
+    state_customer_mobile VARCHAR,
+    state_item_location VARCHAR DEFAULT 'MB-Parekh-Ground-Floor'
+);
+
+-- Toy State History
+CREATE TABLE toy_state_history (
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    toy_item_serial_number VARCHAR REFERENCES toy_items(serial_number),
+    state VARCHAR,
+    state_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    state_updated_by VARCHAR REFERENCES users(employee_id),
+    state_customer_mobile VARCHAR,
+    state_item_location VARCHAR DEFAULT 'MB-Parekh-Ground-Floor'
+);
+
+-- Premium Toy State History
+CREATE TABLE premiumtoy_state_history (
+    id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    premiumtoy_item_serial_number VARCHAR REFERENCES premiumtoy_items(serial_number),
+    state VARCHAR,
+    state_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    state_updated_by VARCHAR REFERENCES users(employee_id),
+    state_customer_mobile VARCHAR,
+    state_item_location VARCHAR DEFAULT 'MB-Parekh-Ground-Floor'
+);
